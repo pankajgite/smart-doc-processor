@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart AI Document System</title>
+    <!-- React & ReactDOM (Development versions) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel for compiling JSX in the browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS for simple styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans p-8">
+
+    <div id="root" class="max-w-4xl mx-auto"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        function App() {
+            const [file, setFile] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState(null);
+            const [form, setForm] = useState({
+                invoiceNumber: '',
+                vendorName: '',
+                gstNumber: '',
+                totalAmount: '',
+                gstAmount: '',
+                invoiceDate: ''
+            });
+
+            const handleFileChange = (e) => {
+                setFile(e.target.files[0]);
+                setError(null);
+            };
+
+            const handleUpload = async (e) => {
+                e.preventDefault();
+                if (!file) {
+                    setError("Please select a file to upload.");
+                    return;
+                }
+
+                setLoading(true);
+                setError(null);
+
+                const formData = new FormData();
+                formData.append("file", file);
+
+                try {
+                    const res = await fetch("/invoice/extract", {
+                        method: "POST",
+                        body: formData
+                    });
+
+                    if (!res.ok) {
+                        const errData = await res.json();
+                        throw new Error(errData.error || "Failed to extract invoice");
+                    }
+
+                    const data = await res.json();
+
+                    // Auto-fill the form
+                    setForm({
+                        invoiceNumber: data.invoiceNumber || '',
+                        vendorName: data.vendorName || '',
+                        gstNumber: data.gstNumber || '',
+                        totalAmount: data.totalAmount || '',
+                        gstAmount: data.gstAmount || '',
+                        invoiceDate: data.invoiceDate || ''
+                    });
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleInputChange = (e) => {
+                const { name, value } = e.target;
+                setForm(prev => ({ ...prev, [name]: value }));
+            };
+
+            return (
+                <div class="bg-white p-8 rounded-xl shadow-lg">
+                    <h1 class="text-3xl font-bold mb-6 text-indigo-600">Smart Invoice Extractor</h1>
+
+                    <form onSubmit={handleUpload} class="mb-8 border-b pb-8">
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Upload Invoice (Image or PDF)</label>
+                            <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                onChange={handleFileChange}
+                                class="block w-full text-sm text-gray-500
+                                       file:mr-4 file:py-2 file:px-4
+                                       file:rounded-full file:border-0
+                                       file:text-sm file:font-semibold
+                                       file:bg-indigo-50 file:text-indigo-700
+                                       hover:file:bg-indigo-100"
+                            />
+                        </div>
+
+                        {error && <p class="text-red-500 text-sm mb-4">{error}</p>}
+
+                        <button
+                            type="submit"
+                            disabled={loading || !file}
+                            class={`px-6 py-2 rounded-lg text-white font-semibold transition-colors
+                                    ${loading || !file ? 'bg-indigo-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                        >
+                            {loading ? 'Processing...' : 'Extract Data'}
+                        </button>
+                    </form>
+
+                    <div>
+                        <h2 class="text-xl font-semibold mb-4 text-gray-700">Extracted Invoice Details</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Invoice Number</label>
+                                <input
+                                    type="text"
+                                    name="invoiceNumber"
+                                    value={form.invoiceNumber}
+                                    onChange={handleInputChange}
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-indigo-500 focus:ring-indigo-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Vendor Name</label>
+                                <input
+                                    type="text"
+                                    name="vendorName"
+                                    value={form.vendorName}
+                                    onChange={handleInputChange}
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-indigo-500 focus:ring-indigo-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">GST Number</label>
+                                <input
+                                    type="text"
+                                    name="gstNumber"
+                                    value={form.gstNumber}
+                                    onChange={handleInputChange}
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-indigo-500 focus:ring-indigo-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Invoice Date</label>
+                                <input
+                                    type="text"
+                                    name="invoiceDate"
+                                    value={form.invoiceDate}
+                                    onChange={handleInputChange}
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-indigo-500 focus:ring-indigo-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Total Amount</label>
+                                <input
+                                    type="number"
+                                    name="totalAmount"
+                                    value={form.totalAmount}
+                                    onChange={handleInputChange}
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-indigo-500 focus:ring-indigo-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">GST Amount</label>
+                                <input
+                                    type="number"
+                                    name="gstAmount"
+                                    value={form.gstAmount}
+                                    onChange={handleInputChange}
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:border-indigo-500 focus:ring-indigo-500"
+                                />
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

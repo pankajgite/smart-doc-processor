@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat with Documents</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .chat-container { height: 400px; overflow-y: auto; }
+        .message { max-width: 80%; padding: 12px; margin: 8px 0; border-radius: 12px; }
+        .user-message { background-color: #e0f2fe; color: #1e40af; align-self: flex-end; margin-left: auto; }
+        .bot-message { background-color: #f3f4f6; color: #374151; align-self: flex-start; margin-right: auto; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans p-8">
+    <div id="root" class="max-w-4xl mx-auto"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect } = React;
+
+        function ChatApp() {
+            const [files, setFiles] = useState([]);
+            const [uploading, setUploading] = useState(false);
+            const [context, setContext] = useState("");
+            const [messages, setMessages] = useState([]);
+            const [currentMessage, setCurrentMessage] = useState("");
+            const [asking, setAsking] = useState(false);
+            const chatEndRef = useRef(null);
+
+            useEffect(() => {
+                chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+            }, [messages]);
+
+            const handleFileChange = (e) => {
+                setFiles(Array.from(e.target.files));
+            };
+
+            const handleUpload = async (e) => {
+                e.preventDefault();
+                if (files.length === 0) return;
+
+                setUploading(true);
+                const formData = new FormData();
+                files.forEach(file => formData.append("files", file));
+
+                try {
+                    const res = await fetch("/api/chat/upload", {
+                        method: "POST",
+                        body: formData
+                    });
+                    const data = await res.json();
+
+                    if (res.ok) {
+                        setContext(data.context);
+                        setMessages([{ role: 'bot', text: `Successfully processed ${files.length} document(s). You can now ask questions about them!` }]);
+                    } else {
+                        setMessages([{ role: 'bot', text: `Error: ${data.error}` }]);
+                    }
+                } catch (err) {
+                    setMessages([{ role: 'bot', text: `Upload failed: ${err.message}` }]);
+                } finally {
+                    setUploading(false);
+                }
+            };
+
+            const handleSendMessage = async (e) => {
+                e.preventDefault();
+                if (!currentMessage.trim() || !context) return;
+
+                const userMsg = currentMessage;
+                setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+                setCurrentMessage("");
+                setAsking(true);
+
+                try {
+                    const res = await fetch("/api/chat/ask", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ context, question: userMsg })
+                    });
+                    const data = await res.json();
+
+                    if (res.ok) {
+                        setMessages(prev => [...prev, { role: 'bot', text: data.answer }]);
+                    } else {
+                        setMessages(prev => [...prev, { role: 'bot', text: `Error: ${data.error}` }]);
+                    }
+                } catch (err) {
+                    setMessages(prev => [...prev, { role: 'bot', text: `Failed to get answer: ${err.message}` }]);
+                } finally {
+                    setAsking(false);
+                }
+            };
+
+            return (
+                <div class="bg-white p-8 rounded-xl shadow-lg flex flex-col h-[80vh]">
+                    <div class="flex justify-between items-center mb-6">
+                        <h1 class="text-3xl font-bold text-indigo-600">Chat with Documents</h1>
+                        <a href="/" class="text-indigo-500 hover:underline">Back to Extractor</a>
+                    </div>
+
+                    {/* Upload Section */}
+                    <div class="bg-gray-50 p-6 rounded-lg border border-gray-200 mb-6">
+                        <form onSubmit={handleUpload} class="flex items-end gap-4">
+                            <div class="flex-grow">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Upload Multiple Documents (Images/PDFs)</label>
+                                <input
+                                    type="file"
+                                    multiple
+                                    accept="image/*,application/pdf"
+                                    onChange={handleFileChange}
+                                    class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                                />
+                            </div>
+                            <button
+                                type="submit"
+                                disabled={uploading || files.length === 0}
+                                class={`px-6 py-2 rounded-lg text-white font-semibold whitespace-nowrap ${uploading || files.length === 0 ? 'bg-indigo-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                            >
+                                {uploading ? 'Processing...' : 'Upload & Process'}
+                            </button>
+                        </form>
+                        {context && <p class="text-green-600 text-sm mt-3 font-medium">✓ Documents loaded and ready for chat.</p>}
+                    </div>
+
+                    {/* Chat Section */}
+                    <div class="flex-grow flex flex-col bg-gray-100 rounded-lg p-4 mb-4 chat-container border border-gray-200">
+                        {messages.length === 0 ? (
+                            <div class="m-auto text-gray-400 text-center">
+                                <svg class="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                                Upload documents above to start chatting!
+                            </div>
+                        ) : (
+                            messages.map((msg, idx) => (
+                                <div key={idx} class={`message flex flex-col ${msg.role === 'user' ? 'user-message' : 'bot-message'}`}>
+                                    <span class="text-xs opacity-50 mb-1">{msg.role === 'user' ? 'You' : 'AI Assistant'}</span>
+                                    <span class="whitespace-pre-wrap">{msg.text}</span>
+                                </div>
+                            ))
+                        )}
+                        {asking && (
+                            <div class="message bot-message flex items-center gap-2">
+                                <span class="animate-pulse">●</span><span class="animate-pulse delay-75">●</span><span class="animate-pulse delay-150">●</span>
+                            </div>
+                        )}
+                        <div ref={chatEndRef} />
+                    </div>
+
+                    {/* Input Section */}
+                    <form onSubmit={handleSendMessage} class="flex gap-2">
+                        <input
+                            type="text"
+                            value={currentMessage}
+                            onChange={(e) => setCurrentMessage(e.target.value)}
+                            disabled={!context || asking}
+                            placeholder={context ? "Ask a question about the documents..." : "Upload documents first..."}
+                            class="flex-grow rounded-lg border-gray-300 shadow-sm p-3 border focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        />
+                        <button
+                            type="submit"
+                            disabled={!context || asking || !currentMessage.trim()}
+                            class={`px-6 py-3 rounded-lg text-white font-semibold ${!context || asking || !currentMessage.trim() ? 'bg-indigo-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                        >
+                            Send
+                        </button>
+                    </form>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ChatApp />);
+    </script>
+</body>
+</html>
