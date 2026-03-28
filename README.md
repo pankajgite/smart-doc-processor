@@ -44,7 +44,7 @@ graph TD
 ## Screenshots
 
 ### Document Chat Interface
-*(To add your own screenshot here: take a screenshot of your running application, save it as `chat-screenshot.png` in the root of your project folder, and it will appear below)*
+
 
 ![Chat with Documents](chat-screenshot.png)
 
