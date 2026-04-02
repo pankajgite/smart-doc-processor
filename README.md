@@ -20,12 +20,15 @@ graph TD
     G -->|Clean JSON String| H[ObjectMapper Deserialization]
     H -->|InvoiceDTO| I[React UI Form Auto-fill]
     
-    subpath2[Document Chat Flow]
-    B -->|Route: /api/chat/upload| J[OCR/PDFBox Extractor]
-    J -->|Combined Text Context| K[Context Memory]
-    L[User Asks Question] -->|Route: /api/chat/ask| M[AI Chat Service]
-    K -->|Inject Context| M
-    M -->|Prompt with Context + Question| G
+    subpath2[Advanced Document Chat Flow with RAG]
+    B -->|Route: /api/v2/chat/sessions| S[Create/Get Chat Session]
+    B -->|Route: /api/v2/chat/sessions/{id}/upload| J[OCR Extractor & Text Splitter]
+    J -->|Chunked Documents| V[(PGVector Database)]
+    L[User Asks Question] -->|Route: /api/v2/chat/sessions/{id}/ask| M[Advanced RAG Service]
+    M -->|1. Vector Similarity Search| V
+    V -->|2. Return Top Context Chunks| M
+    M -->|3. Fetch Chat History| DB[(PostgreSQL Relational DB)]
+    M -->|4. Prompt with Context + History + Question| G
     G -->|AI Answer| N[React Chat UI]
 ```
 
@@ -102,16 +105,30 @@ With a solid backend, we focused on the user experience.
     - A collapsible sidebar was added for navigation.
     - The React components for the "Extractor" and "Chat" tools were moved into a single `app.js` file, and JavaScript logic was used to toggle their visibility, creating a seamless single-page application (SPA) experience.
 
+### Phase 5: Advanced RAG and Chat History (PGVector)
+The simple doc chat was limited by prompt size and lack of memory. We introduced vector search and a relational database.
+1.  **Vector Database**: We added `spring-ai-vectorstore-pgvector` and created a `docker-compose.yml` to easily boot a PostgreSQL database equipped with the `pgvector` extension.
+2.  **RAG (Retrieval-Augmented Generation)**: Instead of passing whole documents to the AI, we now split documents into smaller chunks and embed them into the PGVector database. When a user asks a question, we perform a vector similarity search to find only the most relevant chunks.
+3.  **Chat History**: Introduced `ChatSession` and `ChatMessage` JPA entities to persist conversation threads in PostgreSQL.
+4.  **Advanced API**: The new `/api/v2/chat/sessions` endpoints handle session creation, document chunk ingestion, and conversational RAG querying.
+
 ---
 
 ## How to Run the Project
 
 ### Prerequisites
 1.  **JDK 21**: Make sure you have Java 21 installed.
-2.  **Maven**: The project uses Maven for its build.
-3.  **Tesseract OCR**: You must have Tesseract installed on your system.
+2.  **Docker & Docker Compose**: Required for running the PGVector database.
+3.  **Maven**: The project uses Maven for its build.
+4.  **Tesseract OCR**: You must have Tesseract installed on your system.
     - You can download it from the [official Tesseract GitHub page](https://github.com/tesseract-ocr/tesseract).
     - **Crucially**, ensure you also download the **English language data file (`eng.traineddata`)** and place it in the `tessdata` directory of your Tesseract installation (e.g., `C:\Program Files\Tesseract-OCR\tessdata`).
+
+### Starting the Database
+1. Before starting the spring boot application, spin up the PGVector PostgreSQL Database.
+    ```sh
+    docker-compose up -d
+    ```
 
 ### Configuration
 1.  Open the `src/main/resources/application.properties` file.
